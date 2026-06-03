@@ -1,0 +1,9 @@
+pandas
+google-cloud-bigquery
+db-dtypes
+fastapi
+uvicorn
+mcp
+requests
+voyageai
+python-dotenv
