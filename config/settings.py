@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 
+# Load environment variables from .env file
 load_dotenv(override=True)
 
 # Google Cloud Project Info
@@ -10,5 +11,7 @@ TABLE_ID = "EmailData_Enriched"
 
 # MongoDB Info (Optional if using BQ only)
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
-DB_NAME = "smart-email-manger"
+VOYAGE_API_KEY = os.getenv("VOYAGE_API_KEY")
+DB_NAME = "smart_email_manager"
 COLLECTION_NAME = "EmailData"
+PROJECT_ID = os.getenv("PROJECT_ID", "grah-2026")
