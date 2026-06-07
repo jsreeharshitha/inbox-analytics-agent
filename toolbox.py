@@ -51,9 +51,22 @@ def generate_response_time_report(user_email: str, contact_emails: list):
     res = send_analytics_email(user_email, "[AGENT REPORT] Inbox Response Time Analytics", html, analytics["charts"])
     return res
 
-def get_recommendations_for_action(user_email: str, action: str):
+def extract_keywords(note: str):
+    """
+    Heuristic to extract high-value keywords for Hybrid Search.
+    Focuses on important terms like 'trigger', 'notification', 'alert'.
+    """
+    # Simple extraction: all words > 4 chars, plus some specific ones
+    words = note.lower().replace(".", "").replace(",", "").split()
+    high_value = {"trigger", "alert", "mail", "email", "test", "news"}
+    keywords = [w for w in words if len(w) > 4 or w in high_value]
+    # Limit to top 5 keywords for SQL performance
+    return list(set(keywords))[:5]
+
+def get_recommendations_for_action(user_email: str, action: str, threshold: float = 0.8):
     """
     Helper to find email candidates in BigQuery based on user preferences.
+    Uses the dynamic threshold passed from the UI and Hybrid Search.
     """
     try:
         pref_collection = get_collection("UserPreferences")
@@ -63,10 +76,23 @@ def get_recommendations_for_action(user_email: str, action: str):
         for p in prefs:
             note = p.get("llm_semantic_note")
             if not note: continue
+            
+            # Hybrid Search: Extract keywords to boost short/test messages
+            keywords = extract_keywords(note)
+            print(f"[*] Analyzing preference: '{note[:50]}...' (Keywords: {keywords})")
+            
             embedding = generate_embedding(note)
-            results_json = vector_search_emails(embedding)
+            results_json = vector_search_emails(embedding, keywords=keywords)
             candidates = json.loads(results_json)
-            filtered = [c for c in candidates if c.get("similarity", 0) > 0.8]
+            
+            # Debug: Log top 3 scores
+            if candidates:
+                top_scores = [round(c.get('similarity', 0), 3) for c in candidates[:3]]
+                print(f"    - Top similarity scores found in BigQuery: {top_scores}")
+
+            # Apply dynamic threshold
+            filtered = [c for c in candidates if c.get("similarity", 0) > threshold]
+            print(f"    - Found {len(filtered)} candidates above threshold {threshold}")
             all_candidates.extend(filtered)
             
         return all_candidates
@@ -74,16 +100,16 @@ def get_recommendations_for_action(user_email: str, action: str):
         print(f"Error getting {action} recommendations: {str(e)}")
         return []
 
-def generate_tiered_recommendation_report(user_email: str, notify_tiering: bool = True, notify_unsubscribe: bool = True):
+def generate_tiered_recommendation_report(user_email: str, notify_tiering: bool = True, notify_unsubscribe: bool = True, similarity_threshold: float = 0.8):
     """
     Orchestrator: Generates recommendation report and emails it to the user.
-    Respects UI preferences to skip specific tiers.
+    Respects UI preferences to skip specific tiers and applies dynamic thresholding.
     """
-    print(f"[*] Generating Tiered Recommendation Report for {user_email}...")
+    print(f"[*] Generating Tiered Recommendation Report for {user_email} (Threshold: {similarity_threshold})...")
     
-    unsubscribe = get_recommendations_for_action(user_email, "unsubscribe") if notify_unsubscribe else []
-    archive = get_recommendations_for_action(user_email, "archive") if notify_tiering else []
-    delete = get_recommendations_for_action(user_email, "delete") if notify_tiering else []
+    unsubscribe = get_recommendations_for_action(user_email, "unsubscribe", similarity_threshold) if notify_unsubscribe else []
+    archive = get_recommendations_for_action(user_email, "archive", similarity_threshold) if notify_tiering else []
+    delete = get_recommendations_for_action(user_email, "delete", similarity_threshold) if notify_tiering else []
     
     # 1. Build HTML
     html = f"""
