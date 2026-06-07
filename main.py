@@ -49,9 +49,10 @@ async def call_mcp_tool(request: Request):
             user_email = arguments.get("user_email")
             notify_tiering = arguments.get("notify_tiering", True)
             notify_unsubscribe = arguments.get("notify_unsubscribe", True)
+            similarity_threshold = float(arguments.get("similarity_threshold", 0.8))
             
             if not user_email: raise HTTPException(400, "user_email required")
-            result = generate_tiered_recommendation_report(user_email, notify_tiering, notify_unsubscribe)
+            result = generate_tiered_recommendation_report(user_email, notify_tiering, notify_unsubscribe, similarity_threshold)
             return {"status": "success", "result": result}
             
         else:
