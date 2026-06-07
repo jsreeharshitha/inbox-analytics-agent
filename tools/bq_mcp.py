@@ -55,16 +55,16 @@ def vector_search_emails(embedding: list) -> str:
     ),
     similarities AS (
       SELECT 
-        e.subject, e.sender, e.snippet, e.processed_at,
+        e.subject, e.sender, e.content as snippet, e.processed_at,
         (
           SELECT SUM(a*b) 
-          FROM UNNEST(e.vector_embedding) a WITH OFFSET i 
+          FROM UNNEST(e.ml_generate_embedding_result) a WITH OFFSET i 
           JOIN UNNEST(t.target_vec) b WITH OFFSET j ON i = j
         ) / (
-          (SELECT SQRT(SUM(pow(a, 2))) FROM UNNEST(e.vector_embedding) a) * 
+          (SELECT SQRT(SUM(pow(a, 2))) FROM UNNEST(e.ml_generate_embedding_result) a) * 
           (SELECT SQRT(SUM(pow(b, 2))) FROM UNNEST(t.target_vec) b)
         ) as similarity
-      FROM `mongo_sync_smart_email_manger.EmailData_Enriched` e, target t
+      FROM `{os.getenv("PROJECT_ID", "grah-2026")}.mongo_sync_smart_email_manger.EmailData_Enriched` e, target t
     )
     SELECT * FROM similarities 
     WHERE similarity IS NOT NULL
